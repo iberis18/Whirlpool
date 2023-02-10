@@ -6,7 +6,9 @@ namespace Whirlpool
     {
         static void Main(string[] args)
         {
-            Console.WriteLine("Hello World!");
+            Whirlpool whirlpool = new Whirlpool("infile.txt");
+
+            Console.WriteLine(whirlpool.GetHash());
         }
     }
 }

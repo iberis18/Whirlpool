@@ -6,7 +6,7 @@ namespace Whirlpool
 {
     public class Whirlpool
     {
-        private FileStream infile, outfile;
+        private FileStream infile;
         private byte[,] H;
         private byte[] message;
         private static readonly byte[] S = new byte[256]
@@ -29,10 +29,24 @@ namespace Whirlpool
             0x16,  0x3a,  0x69,  0x09,  0x70,  0xb6,  0xd0,  0xed,  0xcc,  0x42,  0x98,  0xa4,  0x28,  0x5c,  0xf8,  0x86
         };
 
-        public Whirlpool(string infile, string outfile)
+        public Whirlpool(string infile)
         {
             this.infile = new FileStream(infile, FileMode.Open, FileAccess.Read);
-            this.outfile = new FileStream(outfile, FileMode.Create);
+            //this.outfile = new FileStream(outfile, FileMode.Create);
+
+        }
+
+        public string GetHash()
+        {
+            MessageComletion();
+            BufInitialize();
+            Description();
+
+            byte[] buf = new byte[64];
+            for (int i = 0; i < 8; i++)
+                for (int j = 0; j < 8; j++)
+                    buf[i * 8 + j] = H[i, j];
+            return System.Text.Encoding.Default.GetString(buf);
         }
 
         //формирует дополненное сообщение
