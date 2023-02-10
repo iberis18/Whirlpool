@@ -9,7 +9,7 @@ namespace Whirlpool
         private FileStream infile, outfile;
         private byte[,] H;
         private byte[] message;
-        private byte[] S = new byte[256]
+        private static readonly byte[] S = new byte[256]
         {
             0x18,  0x23,  0xc6,  0xe8,  0x87,  0xb8,  0x01,  0x4f,  0x36,  0xa6,  0xd2,  0xf5,  0x79,  0x6f,  0x91,  0x52,
             0x60,  0xbc,  0x9b,  0x8e,  0xa3,  0x0c,  0x7b,  0x35,  0x1d,  0xe0,  0xd7,  0xc2,  0x2e,  0x4b,  0xfe,  0x57,
@@ -129,8 +129,10 @@ namespace Whirlpool
                 //где C(round) это матрица 8x8 у которой все элементы нули, кроме первой строчки, которая берётся из S-Box: //Cm[0..7] = S-Box[8(m-1)..8m-1].
 
 
-                
 
+                byte[,] H = this.H;
+                this.H = Add(WFunction(m, H), m);
+                this.H = Add(this.H, H);
 
             }
         }
@@ -140,26 +142,17 @@ namespace Whirlpool
             byte[,] w = new byte[8, 8];
 
             //0 раунд
-            w = AddRoundKey(m, h);
+            w = Add(m, h);
 
 
             //10 раундов шифрования
             for (int round = 1; round <= 10; round++)
             {
-                //h = AddRoundKey((round, m), MixRow(ShiftColumn(SubBytes(H))));
-
-
+                h = Add(MixRow(ShiftColumn(SubBytes(h))), C(round, m));
+                w = Add(MixRow(ShiftColumn(SubBytes(w))), h);
             }
 
-
-
-
-
-
-
-
-
-            return m;
+            return w;
         }
 
         private byte[,] C(int round, byte[,] m)
@@ -181,32 +174,72 @@ namespace Whirlpool
             for (int i = 0; i < 8; i++)
                 for (int j = 0; j < 8; j++)
                 {
-                    byte a = (byte)((byte)0xf0 & matr[i, j]);
-                    byte b = (byte)((byte)0x0f & matr[i, j]);
-                    matr[i, j] = S[0x10 * a + b];
+                    // byte a = (byte)((byte)0xf0 & matr1[i, j]);
+                    // byte b = (byte)((byte)0x0f & matr1[i, j]);
+                    // matr1[i, j] = S[0x10 * a + b];
+                    matr[i, j] = S[matr[i, j]];
                 }
 
             return matr;
         }
         private byte SubBytes(byte n)
         {
-            return n;
+            return S[n];
         }
 
         private byte[,] ShiftColumn(byte[,] matr)
         {
+            byte[] buf = new byte[8];
+            for (int i = 0; i < 8; i++)
+            {
+                for (int j = 0; j < 8; j++)
+                    buf[j] = matr[j,i];
+
+                for (int j = i; j < 8; j++)
+                    matr[j, i] = buf[i - j];
+                for (int j = 0; j < i; j++)
+                    matr[j, i] = buf[8 - i];
+            }
             return matr;
         }
+
         private byte[,] MixRow(byte[,] matr)
         {
-            return matr;
+            return matr = stateMulC(matr);
         }
-        private byte[,] AddRoundKey(byte[,] matr, byte[,] key)
+
+        private byte[,] Add(byte[,] matr1, byte[,] matr2)
         {
             for (int i = 0; i < 8; i++)
                 for (int j = 0; j < 8; j++)
-                    matr[i, j] ^= key[i, j];
-            return matr;
+                    matr1[i, j] ^= matr2[i, j];
+            return matr1;
+        }
+
+        // Умножение двух чисел в конечном поле GF(2^8) с определяющим полиномом x^8 + x^4 + x^3 + x^2 + 1 
+        private static byte gmul(byte a, byte b)
+        {
+            byte p = 0;
+            while (b != 0)
+            {
+                if ((b & 1) == 1)
+                    p ^= a;
+                b >>= 1;
+                a <<= 1;
+                if ((a & 0x100) != 0)
+                    a ^= 0x1d;   // x^8 + x^4 + x^3 + x^2 + 1 //ВОЗМОЖНО 0x11d!!!!!!!!!!!!!!!!
+            }
+            return p;
+        }
+        private static byte[,] stateMulC(byte[,] a)
+        {
+            byte[,] b = new byte[8, 8];
+            byte[] row = { 1, 1, 4, 1, 8, 5, 2, 9 };
+            for (int i = 0; i < 8; i++)
+            for (int j = 0; j < 8; j++)
+            for (int k = 0; k < 8; k++)
+                b[i, j] ^= gmul(a[i, k], row[(j - k + 8) % 8]);
+            return b;
         }
 
     }
