@@ -6,7 +6,7 @@ namespace Whirlpool
 {
     public class Whirlpool
     {
-        private FileStream infile;
+        private readonly FileStream infile;
         private byte[,] H;
         private byte[] message;
         private static readonly byte[] S = new byte[256]
@@ -32,8 +32,6 @@ namespace Whirlpool
         public Whirlpool(string infile)
         {
             this.infile = new FileStream(infile, FileMode.Open, FileAccess.Read);
-            //this.outfile = new FileStream(outfile, FileMode.Create);
-
         }
 
         public string GetHash()
@@ -46,7 +44,11 @@ namespace Whirlpool
             for (int i = 0; i < 8; i++)
                 for (int j = 0; j < 8; j++)
                     buf[i * 8 + j] = H[i, j];
-            return System.Text.Encoding.Default.GetString(buf);
+            //return System.Text.Encoding.Default.GetString(buf); 
+            string s = "";
+            for (int i = 0; i < 16; i++)
+                s += Convert.ToHexString(buf, i * 4, 4) + " ";
+            return s;
         }
 
         //формирует дополненное сообщение
@@ -95,12 +97,6 @@ namespace Whirlpool
             add.CopyTo(message, infile.Length);
 
             infile.Close();
-
-            // File.Copy(infilename, "processing" + infilename);
-            // processingfile = new FileStream("processing" + infilename, FileMode.Append, FileAccess.Write, FileShare.None);
-            // using (var bw = new BinaryWriter(infile)) 
-            //     bw.Write(arr);
-            // processingfile.Close();
         }
 
         //Инициализация буфера
@@ -143,33 +139,37 @@ namespace Whirlpool
                 //где C(round) это матрица 8x8 у которой все элементы нули, кроме первой строчки, которая берётся из S-Box: //Cm[0..7] = S-Box[8(m-1)..8m-1].
 
 
-
-                byte[,] H = this.H;
-                this.H = Add(WFunction(m, H), m);
-                this.H = Add(this.H, H);
-
+                H = Add(Add(WFunction(m, H), H), m);
             }
         }
 
-        private byte[,] WFunction(byte[,] m, byte[,] h)
+        private byte[,] WFunction(byte[,] m, byte[,] k)
         {
-            byte[,] w = new byte[8, 8];
-
             //0 раунд
-            w = Add(m, h);
+            byte[,] H = Add(m, k);
 
 
             //10 раундов шифрования
             for (int round = 1; round <= 10; round++)
             {
-                h = Add(MixRow(ShiftColumn(SubBytes(h))), C(round, m));
-                w = Add(MixRow(ShiftColumn(SubBytes(w))), h);
+                //готовим ключ
+                k = SubBytes(k);
+                k = ShiftColumn(k);
+                k = MixRow(k);
+                //добавляем константу раунда
+                k = Add(k, C(round));
+
+                // считаем новый h с полученным ключом
+                H = SubBytes(H);
+                H = ShiftColumn(H);
+                H = MixRow(H);
+                H = Add(H, k);
             }
 
-            return w;
+            return H;
         }
 
-        private byte[,] C(int round, byte[,] m)
+        private byte[,] C(int round)
         {
             byte[,] c = new byte[8, 8];
 
@@ -188,17 +188,11 @@ namespace Whirlpool
             for (int i = 0; i < 8; i++)
                 for (int j = 0; j < 8; j++)
                 {
-                    // byte a = (byte)((byte)0xf0 & matr1[i, j]);
-                    // byte b = (byte)((byte)0x0f & matr1[i, j]);
-                    // matr1[i, j] = S[0x10 * a + b];
-                    matr[i, j] = S[matr[i, j]];
+                    matr[i, j] = S[0x10 * ((0xf0 & matr[i, j]) >> 4) + 0x0f & matr[i, j]];
+                    //matr[i, j] = S[matr[i, j]];
                 }
 
             return matr;
-        }
-        private byte SubBytes(byte n)
-        {
-            return S[n];
         }
 
         private byte[,] ShiftColumn(byte[,] matr)
@@ -210,7 +204,7 @@ namespace Whirlpool
                     buf[j] = matr[j,i];
 
                 for (int j = i; j < 8; j++)
-                    matr[j, i] = buf[i - j];
+                    matr[j, i] = buf[j - i];
                 for (int j = 0; j < i; j++)
                     matr[j, i] = buf[8 - i];
             }
@@ -224,6 +218,7 @@ namespace Whirlpool
 
         private byte[,] Add(byte[,] matr1, byte[,] matr2)
         {
+            byte[,] res = new byte[8, 8];
             for (int i = 0; i < 8; i++)
                 for (int j = 0; j < 8; j++)
                     matr1[i, j] ^= matr2[i, j];
@@ -231,9 +226,9 @@ namespace Whirlpool
         }
 
         // Умножение двух чисел в конечном поле GF(2^8) с определяющим полиномом x^8 + x^4 + x^3 + x^2 + 1 
-        private static byte gmul(byte a, byte b)
+        private static short gmul(short a, short b)
         {
-            byte p = 0;
+            short p = 0;
             while (b != 0)
             {
                 if ((b & 1) == 1)
@@ -241,10 +236,11 @@ namespace Whirlpool
                 b >>= 1;
                 a <<= 1;
                 if ((a & 0x100) != 0)
-                    a ^= 0x1d;   // x^8 + x^4 + x^3 + x^2 + 1 //ВОЗМОЖНО 0x11d!!!!!!!!!!!!!!!!
+                    a ^= 0x11d;   // x^8 + x^4 + x^3 + x^2 + 1
             }
-            return p;
+            return p;   
         }
+
         private static byte[,] stateMulC(byte[,] a)
         {
             byte[,] b = new byte[8, 8];
@@ -252,7 +248,7 @@ namespace Whirlpool
             for (int i = 0; i < 8; i++)
             for (int j = 0; j < 8; j++)
             for (int k = 0; k < 8; k++)
-                b[i, j] ^= gmul(a[i, k], row[(j - k + 8) % 8]);
+                b[i, j] ^= (byte)gmul(a[i, k], row[(j - k + 8) % 8]);
             return b;
         }
 
