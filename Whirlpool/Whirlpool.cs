@@ -226,9 +226,9 @@ namespace Whirlpool
         }
 
         // Умножение двух чисел в конечном поле GF(2^8) с определяющим полиномом x^8 + x^4 + x^3 + x^2 + 1 
-        private static short gmul(short a, short b)
+        private static byte gmul(byte a, byte b)
         {
-            short p = 0;
+            byte p = 0;
             while (b != 0)
             {
                 if ((b & 1) == 1)
@@ -236,7 +236,7 @@ namespace Whirlpool
                 b >>= 1;
                 a <<= 1;
                 if ((a & 0x100) != 0)
-                    a ^= 0x11d;   // x^8 + x^4 + x^3 + x^2 + 1
+                    a ^= 0x1d;   // x^8 + x^4 + x^3 + x^2 + 1
             }
             return p;   
         }
@@ -248,7 +248,7 @@ namespace Whirlpool
             for (int i = 0; i < 8; i++)
             for (int j = 0; j < 8; j++)
             for (int k = 0; k < 8; k++)
-                b[i, j] ^= (byte)gmul(a[i, k], row[(j - k + 8) % 8]);
+                b[i, j] ^= gmul(a[i, k], row[(j - k + 8) % 8]);
             return b;
         }
 
